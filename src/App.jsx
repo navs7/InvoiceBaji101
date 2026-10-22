@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { NavLink, Navigate, Route, Routes } from 'react-router-dom';
 import { AppProvider, useApp } from './AppContext.jsx';
 import { db } from './db/index.js';
@@ -9,6 +9,19 @@ import Invoices from './pages/Invoices.jsx';
 import Login from './pages/Login.jsx';
 import Reports from './pages/Reports.jsx';
 import Settings from './pages/Settings.jsx';
+import { getTheme, setTheme } from './theme.js';
+
+function ThemeToggle() {
+  const [theme, set] = useState(getTheme());
+  const pick = (t) => { setTheme(t); set(t); };
+  return (
+    <div className="theme" role="group" aria-label="Theme">
+      {[['auto', 'Auto'], ['light', 'Light'], ['dark', 'Dark']].map(([k, l]) => (
+        <button key={k} className={theme === k ? 'on' : ''} aria-pressed={theme === k} onClick={() => pick(k)}>{l}</button>
+      ))}
+    </div>
+  );
+}
 
 const NAV = [
   ['/', 'Dashboard'],
@@ -41,6 +54,7 @@ function Shell() {
           <NavLink key={to} to={to} end={to === '/'} className={({ isActive }) => (isActive ? 'active' : '')}>{label}</NavLink>
         ))}
         <div className="grow" />
+        <ThemeToggle />
         {db.mode === 'local' && <div className="nav-note">Demo mode: data stays in this browser. Add Firebase details to sync.</div>}
         {db.mode === 'firebase' && <button className="link" onClick={signOut}>Sign out</button>}
       </nav>
