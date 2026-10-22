@@ -1,4 +1,4 @@
-# Invoice Baji
+# Pixel Solutions
 
 A small GST invoicing app for an Indian service business that also exports services. It does four things: Settings, Clients, Invoices (three templates, PDF), and monthly GST reports with CSV download. There is no accounting, inventory or payment handling.
 

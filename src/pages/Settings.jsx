@@ -66,7 +66,7 @@ export default function Settings() {
   };
 
   const backup = async () => {
-    download(`invoice-baji-backup-${todayISO()}.json`, JSON.stringify(await db.exportAll(), null, 2), 'application/json');
+    download(`pixelsolutions-backup-${todayISO()}.json`, JSON.stringify(await db.exportAll(), null, 2), 'application/json');
   };
   const restore = async (e) => {
     const f = e.target.files[0];
@@ -74,7 +74,7 @@ export default function Settings() {
     if (!f) return;
     try {
       const data = JSON.parse(await f.text());
-      if (!data.clients || !data.invoices) throw new Error('This file is not an Invoice Baji backup.');
+      if (!data.clients || !data.invoices) throw new Error('This file is not an Pixel Solutions backup.');
       if (!confirm('Restoring replaces ALL current data with the backup. Continue?')) return;
       await db.importAll(data);
       await reload();

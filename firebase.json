@@ -1,6 +1,6 @@
 {
   "hosting": {
-    "site": "invoicebaji101",
+    "site": "pixelsolutions",
     "public": "dist",
     "ignore": ["firebase.json", "**/.*", "**/node_modules/**"],
     "rewrites": [{ "source": "**", "destination": "/index.html" }]

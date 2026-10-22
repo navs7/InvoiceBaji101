@@ -19,7 +19,7 @@ export default function Login() {
   return (
     <div className="center">
       <form className="card login" onSubmit={submit}>
-        <h1>Invoice Baji</h1>
+        <h1>Pixel Solutions</h1>
         <p className="muted">Sign in to continue.</p>
         <Field label="Email"><input type="email" required autoFocus value={email} onChange={(e) => setEmail(e.target.value)} /></Field>
         <Field label="Password"><input type="password" required value={pw} onChange={(e) => setPw(e.target.value)} /></Field>

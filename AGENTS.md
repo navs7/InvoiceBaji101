@@ -1,6 +1,6 @@
 # AGENTS.md
 
-Context for AI coding tools working on **Invoice Baji**, a small single-user GST invoicing web app for an Indian service business that also exports services. Read this before changing anything. `README.md` covers setup; this file covers intent, rules and traps.
+Context for AI coding tools working on **Pixel Solutions**, a small single-user GST invoicing web app for an Indian service business that also exports services. Read this before changing anything. `README.md` covers setup; this file covers intent, rules and traps.
 
 ## What the product is (and is not)
 
@@ -22,7 +22,7 @@ npm run build
 Deploy (hosting only, specific site; see "Firebase" below):
 
 ```bash
-npm run build && npx firebase-tools deploy --only hosting:invoicebaji101 --project client-manager-v1-f095e
+npm run build && npx firebase-tools deploy --only hosting:pixelsolutions --project client-manager-v1-f095e
 ```
 
 ## Storage modes
@@ -93,10 +93,10 @@ An invoice document holds: `template`, `number`, `seq`, `fy`, `date`, `dueDate`,
 
 ## Firebase / deployment facts
 
-- Project: `client-manager-v1-f095e`. **This project is shared with another app.** Never deploy to the default hosting site, and never run a bare `firebase deploy` (it would also push rules). Deploy only `hosting:invoicebaji101` (see `firebase.json`, which pins `"site": "invoicebaji101"`).
+- Project: `client-manager-v1-f095e`. **This project is shared with another app.** Never deploy to the default hosting site, and never run a bare `firebase deploy` (it would also push rules). Deploy only `hosting:pixelsolutions` (see `firebase.json`, which pins `"site": "pixelsolutions"`).
 - Do not overwrite Firestore rules wholesale. This app only needs `users/{uid}/**` access for the owner; merge that block into any existing rules rather than replacing them.
-- Live URL: https://invoicebaji101.web.app. Single login created manually in Firebase Authentication (there is deliberately no sign-up screen).
-- Repo: https://github.com/navs7/InvoiceBaji101 (branch `main`).
+- Live URL: https://pixelsolutions.web.app. Single login created manually in Firebase Authentication (there is deliberately no sign-up screen).
+- Repo: https://github.com/navs7/InvoiceBaji101 (branch `main`; the repo name predates the rename to Pixel Solutions).
 
 ## Testing expectations
 
@@ -119,6 +119,7 @@ When changing tax, numbering, rules or report code, add or update tests in `src/
 - GSTIN validation checks 15 characters, format, state-code match and the checksum character. Sample data uses `withChecksum()` to produce valid GSTINs.
 - "Send" opens a `mailto:` link and downloads the PDF to attach; there is no SMTP.
 - Logo and signature images are resized client-side and stored as data URLs inside the settings document (keep under Firestore's 1 MB document limit).
+- localStorage keys (`invoice-baji:data`, `invoice-baji:theme`) keep the old name on purpose, so existing demo data and theme choices survive the rename.
 - Hash routing (`#/invoices`) is intentional, so hosting needs no rewrite for deep links.
 - Users should have their CA confirm SAC codes, GST rates, composition eligibility and LUT validity; the app does not give tax advice.
 

@@ -49,7 +49,7 @@ function Shell() {
   return (
     <div className="shell">
       <nav className="nav">
-        <div className="brand">Invoice Baji</div>
+        <div className="brand">Pixel Solutions</div>
         {NAV.map(([to, label]) => (
           <NavLink key={to} to={to} end={to === '/'} className={({ isActive }) => (isActive ? 'active' : '')}>{label}</NavLink>
         ))}

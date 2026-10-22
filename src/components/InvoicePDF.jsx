@@ -100,7 +100,7 @@ export function InvoiceDoc({ invoice: inv, supplier: sup }) {
   };
 
   return (
-    <Document title={inv.number || 'Draft invoice'} author={sup.legalName} creator="Invoice Baji" producer="Invoice Baji">
+    <Document title={inv.number || 'Draft invoice'} author={sup.legalName} creator="Pixel Solutions" producer="Pixel Solutions">
       <Page size="A4" style={s.page} wrap>
         <View style={[s.row, { justifyContent: 'space-between' }]}>
           <View style={{ width: '58%' }}>
