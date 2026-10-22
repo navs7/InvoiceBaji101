@@ -1,15 +1,15 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useApp } from '../AppContext.jsx';
 import PaidModal from '../components/PaidModal.jsx';
 import { Badge, Field, Modal, MoneyInput } from '../components/ui.jsx';
 import { CURRENCIES, GST_RATES, STATES, TEMPLATES, posLabel } from '../config/gst.js';
 import { db } from '../db/index.js';
-import { addDays, dmy, parseTermsDays, todayISO } from '../lib/dates.js';
+import { addDays, dmy, fyRange, fyStartYear, parseTermsDays, todayISO } from '../lib/dates.js';
 import { amountInWords, fmtMoney } from '../lib/money.js';
 import { downloadInvoicePdf, pdfBlobUrl, sendInvoice } from '../lib/pdfActions.js';
 import { allowedTemplates, dueDateWarning, invoiceErrors, isComposition } from '../lib/rules.js';
-import { cancelInvoice, clientSnapshot, duplicateInvoice, issueInvoice, recalc, saveDraft } from '../lib/service.js';
+import { cancelInvoice, clientSnapshot, duplicateInvoice, issueInvoice, recalc, saveDraft, updateIssued } from '../lib/service.js';
 
 const newLine = (settings, client) => ({
   id: Math.random().toString(36).slice(2), desc: settings.defaultSacDesc || '', sac: client?.sac || settings.defaultSac || '',
@@ -63,6 +63,7 @@ function ReadOnly({ inv, onChanged }) {
         <button onClick={() => run(() => downloadInvoicePdf(inv, settings))}>Download PDF</button>
         <button onClick={() => run(() => sendInvoice(inv, settings))}>Send…</button>
         <button onClick={() => run(async () => { const c = await duplicateInvoice(inv.id); nav(`/invoices/${c.id}`); }, 'Duplicated as a new draft.')}>Duplicate</button>
+        {['issued', 'paid'].includes(inv.status) && <button onClick={() => nav(`/invoices/${inv.id}?edit=1`)}>Edit</button>}
         {inv.status === 'issued' && <button className="primary" onClick={() => setPaying(true)}>Mark as paid</button>}
         {['issued', 'paid'].includes(inv.status) && (
           <button className="danger" onClick={() => confirm(`Cancel ${inv.number}? The number stays in your series and is reported as cancelled.`) && run(async () => { await cancelInvoice(inv.id); onChanged(); }, 'Invoice cancelled.')}>Cancel invoice</button>
@@ -91,6 +92,8 @@ export default function InvoiceEditor() {
   const [clients, setClients] = useState([]);
   const [busy, setBusy] = useState(false);
   const [preview, setPreview] = useState(false);
+  const [showErrors, setShowErrors] = useState(false); // validation list appears only after a save or issue attempt
+  const [sp] = useSearchParams();
   const isNew = id === 'new';
 
   const load = async () => {
@@ -102,14 +105,19 @@ export default function InvoiceEditor() {
   };
   useEffect(() => { setInv(null); load(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [id]);
 
-  const view = useMemo(() => (inv && inv.status === 'draft' ? recalc(normalize(inv), settings) : inv), [inv, settings]);
+  const isDraft = inv?.status === 'draft';
+  // Issued or paid invoices can be amended in place via ?edit=1; number, series and template stay fixed.
+  const amending = !!inv && ['issued', 'paid'].includes(inv.status) && sp.get('edit') === '1';
+  const view = useMemo(() => (inv && (isDraft || amending) ? recalc(normalize(inv), amending ? inv.supplier || settings : settings) : inv), [inv, settings, isDraft, amending]);
   if (!inv) return <div className="muted">Loading…</div>;
-  if (inv.status !== 'draft') return <ReadOnly inv={inv} onChanged={load} />;
+  if (!isDraft && !amending) return <ReadOnly inv={inv} onChanged={load} />;
+  const sup = amending ? inv.supplier || settings : settings;
+  const fy = amending ? fyRange(fyStartYear(inv.date)) : null;
 
   const set = (patch) => setInv((x) => ({ ...x, ...patch }));
   const allowed = inv.client ? allowedTemplates(inv.client.type, settings) : [];
   const calc = view.calc;
-  const errors = inv.client ? invoiceErrors(view, settings) : [];
+  const errors = inv.client ? invoiceErrors(view, sup) : [];
   const showTaxRate = inv.template === 'tax' || inv.template === 'exp';
   const comp = isComposition(settings);
 
@@ -139,8 +147,20 @@ export default function InvoiceEditor() {
     return saved;
   };
   const guard = async (fn) => { setBusy(true); try { await fn(); } catch (e) { notify(e.message, 'error'); } finally { setBusy(false); } };
-  const save = () => guard(async () => { if (!inv.client) throw new Error('Choose a client first.'); await doSave(); });
+  const save = () => guard(async () => {
+    setShowErrors(true); if (!inv.client) throw new Error('Choose a client first.'); await doSave(); });
+  const saveAmendment = () => guard(async () => {
+    setShowErrors(true);
+    if (errors.length) throw new Error('Fix the problems listed above before saving.');
+    if (inv.date < fy.from || inv.date > fy.to) throw new Error(`The invoice date must stay inside ${inv.fy}, the financial year of its number.`);
+    const paidWarning = inv.status === 'paid' && view.calc.totals.total !== inv.calc.totals.total ? ' This invoice is marked paid and the total is changing, so check the recorded payment.' : '';
+    if (!confirm(`Save changes to ${inv.number}? If this invoice is already in a filed GST return, a credit/debit note is the correct way to amend it.${paidWarning}`)) return;
+    await updateIssued(normalize(inv));
+    notify(`Saved changes to ${inv.number}.`);
+    nav(`/invoices/${inv.id}`, { replace: true });
+  });
   const issue = () => guard(async () => {
+    setShowErrors(true);
     if (errors.length) throw new Error('Fix the problems listed above before issuing.');
     if (!confirm('Issue this invoice? It gets its number now and can no longer be edited.')) return;
     const done = await issueInvoice(normalize(inv), settings);
@@ -151,14 +171,24 @@ export default function InvoiceEditor() {
   return (
     <>
       <div className="page-head">
-        <h1>{isNew ? 'New invoice' : 'Draft invoice'}</h1><Badge status="draft" /><div className="grow" />
+        <h1>{amending ? `Edit ${inv.number}` : isNew ? 'New invoice' : 'Draft invoice'}</h1><Badge status={inv.status} /><div className="grow" />
         <button disabled={!inv.client || !inv.template} onClick={() => setPreview(true)}>Preview PDF</button>
-        <button disabled={busy} onClick={save}>Save draft</button>
-        <button className="primary" disabled={busy || !inv.client || !inv.template} onClick={issue}>Issue invoice</button>
+        {amending ? (
+          <>
+            <button onClick={() => nav(`/invoices/${inv.id}`)}>Discard changes</button>
+            <button className="primary" disabled={busy} onClick={saveAmendment}>Save changes</button>
+          </>
+        ) : (
+          <>
+            <button disabled={busy} onClick={save}>Save draft</button>
+            <button className="primary" disabled={busy || !inv.client || !inv.template} onClick={issue}>Issue invoice</button>
+          </>
+        )}
       </div>
       {comp && <div className="alert warn">You are registered under the Composition scheme: only Bills of Supply to clients in {settings.stateCode ? posLabel(settings.stateCode) : 'your state'} are allowed.</div>}
-      {errors.length > 0 && (
-        <div className="alert error"><strong>Before this can be issued:</strong><ul>{errors.map((e, i) => <li key={i}>{e}</li>)}</ul></div>
+      {amending && <div className="alert warn">You are editing an issued invoice. The number, series and template stay the same. Amending an invoice that is already in a filed GST return should be done with a credit/debit note instead.</div>}
+      {showErrors && errors.length > 0 && (
+        <div className="alert error"><strong>{amending ? 'Before these changes can be saved:' : 'Before this can be issued:'}</strong><ul>{errors.map((e, i) => <li key={i}>{e}</li>)}</ul></div>
       )}
 
       <div className="card">
@@ -170,12 +200,12 @@ export default function InvoiceEditor() {
             </select>
           </Field>
           <Field label="Template" hint={inv.client && !allowed.length ? 'No template is allowed for this client.' : ''}>
-            <select value={inv.template || ''} disabled={allowed.length < 2} onChange={(e) => pickTemplate(e.target.value)}>
+            <select value={inv.template || ''} disabled={allowed.length < 2 || amending} onChange={(e) => pickTemplate(e.target.value)}>
               {!inv.template && <option value="">—</option>}
               {(allowed.length ? allowed : [inv.template].filter(Boolean)).map((k) => <option key={k} value={k}>{TEMPLATES[k].short}</option>)}
             </select>
           </Field>
-          <Field label="Invoice date"><input type="date" value={inv.date} onChange={(e) => set({ date: e.target.value, dueDate: addDays(e.target.value, parseTermsDays(inv.paymentTerms)) })} /></Field>
+          <Field label="Invoice date"><input type="date" value={inv.date} min={fy?.from} max={fy?.to} onChange={(e) => set({ date: e.target.value, dueDate: addDays(e.target.value, parseTermsDays(inv.paymentTerms)) })} /></Field>
           <Field label="Payment terms"><input value={inv.paymentTerms} onChange={(e) => set({ paymentTerms: e.target.value, dueDate: addDays(inv.date, parseTermsDays(e.target.value)) })} /></Field>
           <Field label="Due date" error={dueDateWarning(inv)}><input type="date" value={inv.dueDate} onChange={(e) => set({ dueDate: e.target.value })} /></Field>
           <Field label="Place of supply">

@@ -52,6 +52,7 @@ export default function Invoices() {
                 <td><Badge status={i.status} /></td>
                 <td className="right nowrap" onClick={(e) => e.stopPropagation()}>
                   {i.status !== 'draft' && <button className="sm" onClick={() => run(() => downloadInvoicePdf(i, settings))}>PDF</button>}{' '}
+                  {i.status !== 'cancelled' && <button className="sm" onClick={() => nav(i.status === 'draft' ? `/invoices/${i.id}` : `/invoices/${i.id}?edit=1`)}>Edit</button>}{' '}
                   <button className="sm" onClick={async () => { const c = await run(() => duplicateInvoice(i.id), 'Duplicated as a new draft.'); if (c) nav(`/invoices/${c.id}`); }}>Duplicate</button>{' '}
                   {i.status === 'issued' && <button className="sm" onClick={() => setPaying(i)}>Mark paid</button>}{' '}
                   {['issued', 'paid'].includes(i.status) && <button className="sm danger" onClick={() => confirm(`Cancel ${i.number}? The number stays in your series and is reported as cancelled.`) && run(() => cancelInvoice(i.id), 'Invoice cancelled.')}>Cancel</button>}

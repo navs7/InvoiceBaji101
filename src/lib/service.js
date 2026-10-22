@@ -1,5 +1,5 @@
 import { db } from '../db/index.js';
-import { addDays, parseTermsDays, todayISO } from './dates.js';
+import { addDays, fyOfDate, parseTermsDays, todayISO } from './dates.js';
 import { invoiceErrors, isIntraState } from './rules.js';
 import { computeInvoice } from './tax.js';
 
@@ -72,4 +72,19 @@ export async function deleteClient(id) {
   const invoices = await db.list('invoices');
   if (invoices.some((i) => i.clientId === id)) throw new Error('This client has invoices, so it can only be archived, not deleted.');
   await db.remove('clients', id);
+}
+
+// Amend an issued or paid invoice in place. Number, series, template and FY are fixed; the
+// supplier snapshot from issue time is kept so the PDF still reflects what was originally issued.
+export async function updateIssued(inv) {
+  const current = await db.get('invoices', inv.id);
+  if (!current || !['issued', 'paid'].includes(current.status)) throw new Error('Only issued or paid invoices can be amended.');
+  const next = recalc({
+    ...inv, status: current.status, number: current.number, seq: current.seq, fy: current.fy, template: current.template,
+    supplier: current.supplier, payment: current.payment, issuedAt: current.issuedAt,
+  }, current.supplier);
+  if (fyOfDate(next.date) !== current.fy) throw new Error(`The invoice date must stay inside ${current.fy}.`);
+  const errs = invoiceErrors(next, current.supplier);
+  if (errs.length) throw new Error(errs.join('\n'));
+  return db.put('invoices', { ...next, editedAt: new Date().toISOString() });
 }
